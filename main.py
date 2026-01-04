@@ -1,12 +1,12 @@
-import requests
+import urllib.request
 import re
 import socket
 import time
-import sys
+import html
 from concurrent.futures import ThreadPoolExecutor
 
 # ==========================================
-# 🎯 منابع (تلفیقی از گیت‌هاب و تلگرام)
+# 🎯 منابع (Sources)
 # ==========================================
 SOURCES = [
     # --- Premium GitHub Raw Sources ---
@@ -29,90 +29,98 @@ SOURCES = [
     # --- 👇 ADD YOUR OWN SOURCES HERE 👇 ---
     # "YOUR_CHANNEL_LINK_OR_RAW_URL",
 ]
+# ⚙️ تنظیمات
+TIMEOUT = 2.0       # تایم‌اوت تست اتصال
+MAX_THREADS = 50    # سرعت تست
 
-# تایم‌اوت رو زیاد کردم که مطمئن بشیم مشکل از کندی نیست
-TIMEOUT = 10.0 
+# ==========================================
+# 🛠 توابع
+# ==========================================
 
-def fetch_proxies():
-    print("🔍 شروع اسکن منابع...")
-    all_proxies = set()
-    headers = {'User-Agent': 'Mozilla/5.0'}
-
-    for url in SOURCES:
-        try:
-            print(f"   📥 در حال دانلود: {url} ...")
-            resp = requests.get(url, headers=headers, timeout=10)
-            text = resp.text
-            
-            # ریجکس ساده‌تر و کلی‌تر
-            # دنبال هر چیزی میگرده که server=...&port=... داشته باشه
-            matches = re.findall(r'(?:server|server_name)=([^&]+)&(?:port|p)=([^&]+)&(?:secret|s)=([^"\s&\n]+)', text)
-            
-            if len(matches) == 0:
-                print(f"      ⚠️ هیچ پروکسی در این لینک یافت نشد.")
-            else:
-                print(f"      ✅ {len(matches)} پروکسی پیدا شد.")
-
-            for server, port, secret in matches:
-                all_proxies.add((server, int(port), secret))
-                
-        except Exception as e:
-            print(f"      ❌ خطا در دانلود سورس: {e}")
-            
-    print(f"\n📦 مجموع کل کاندیداها برای تست: {len(all_proxies)}")
-    return list(all_proxies)
-
-def check_proxy(proxy_data):
-    server, port, secret = proxy_data
+def fetch_content(url):
     try:
-        # تست اتصال TCP ساده
-        sock = socket.create_connection((server, port), timeout=TIMEOUT)
-        sock.close()
-        return f"tg://proxy?server={server}&port={port}&secret={secret}"
+        # شبیه‌سازی مرورگر واقعی
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        req = urllib.request.Request(url, headers=headers)
+        
+        with urllib.request.urlopen(req, timeout=10) as response:
+            raw_data = response.read().decode('utf-8', errors='ignore')
+            # 💡 نکته مهم: تبدیل کاراکترهای HTML مثل &amp; به &
+            return html.unescape(raw_data)
     except Exception as e:
-        # اینجا ارور رو برمی‌گردونیم که ببینیم چرا وصل نمیشه
-        return None
+        print(f"      ❌ دانلود نشد: {e}")
+        return ""
+
+def extract_proxies(text):
+    # ریجکس ساده و قدرتمند
+    # دنبال الگوی server=...&port=...&secret=... میگرده
+    pattern = r'(?:server|server_name)=([^&"\s]+)&(?:port|p)=(\d+)&(?:secret|s)=([^&"\s]+)'
+    return re.findall(pattern, text)
+
+def check_proxy(proxy_tuple):
+    server, port, secret = proxy_tuple
+    try:
+        start = time.time()
+        # تست اتصال TCP
+        sock = socket.create_connection((server, int(port)), timeout=TIMEOUT)
+        sock.close()
+        ping = int((time.time() - start) * 1000)
+        return f"tg://proxy?server={server}&port={port}&secret={secret}", ping
+    except:
+        return None, None
 
 def main():
-    raw_proxies = fetch_proxies()
+    print("🚀 شروع اسکنر جدید (HTML Unescape Mode)...")
     
-    if not raw_proxies:
-        print("🔴 ارور مهلک: هیچ پروکسی‌ای جمع‌آوری نشد! مشکل از دانلود سورس‌هاست.")
-        sys.exit(1)
-
-    print(f"\n⚡️ شروع تست اتصال (روی {len(raw_proxies)} مورد)...")
+    all_candidates = set()
     
-    valid_count = 0
-    final_links = []
-
-    # تست با ترد کمتر برای اطمینان بیشتر
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        results = executor.map(check_proxy, raw_proxies)
+    # 1. جمع‌آوری
+    for url in SOURCES:
+        print(f"📥 بررسی: {url}")
+        content = fetch_content(url)
         
-        for res in results:
-            if res:
-                valid_count += 1
-                final_links.append(res)
-                # چاپ اولین موفقیت برای دلگرمی
-                if valid_count == 1:
-                    print(f"   🎉 اولین پروکسی سالم پیدا شد: {res[:40]}...")
+        found = extract_proxies(content)
+        
+        if len(found) > 0:
+            print(f"   ✅ {len(found)} مورد پیدا شد.")
+            for item in found:
+                all_candidates.add(item)
+        else:
+            print(f"   ⚠️ خالی بود. (نمونه محتوا: {content[:100]}...)")
 
-    print(f"\n📊 گزارش نهایی:")
-    print(f"   - کل موارد تست شده: {len(raw_proxies)}")
-    print(f"   - تعداد سالم: {valid_count}")
+    candidates_list = list(all_candidates)
+    print(f"\n📦 کل پروکسی‌های یکتا: {len(candidates_list)}")
+    
+    if len(candidates_list) == 0:
+        print("🔴 هیچ پروکسی‌ای پیدا نشد. احتمالا گیت‌هاب دسترسی به تلگرام را محدود کرده است.")
+        return
 
+    # 2. تست
+    print(f"⚡️ شروع تست اتصال روی {len(candidates_list)} مورد...")
+    valid_proxies = []
+    
+    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+        results = executor.map(check_proxy, candidates_list)
+        
+        for link, ping in results:
+            if link:
+                valid_proxies.append({'link': link, 'ping': ping})
+
+    # 3. ذخیره
+    valid_proxies.sort(key=lambda x: x['ping'])
+    final_links = [x['link'] for x in valid_proxies]
+    
     if final_links:
-        # ذخیره با هدر زمان (برای اجبار به آپدیت گیت)
         import datetime
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         with open("mtproto.txt", "w", encoding="utf-8") as f:
-            f.write(f"# Updated: {now}\n")
+            f.write(f"# Updated: {now} UTC\n")
             f.write("\n".join(final_links))
-        print("💎 فایل mtproto.txt با موفقیت ذخیره شد.")
+            
+        print(f"\n💎 موفقیت‌آمیز! {len(final_links)} پروکسی سالم ذخیره شد.")
     else:
-        print("❌ متاسفانه هیچ پروکسی‌ای وصل نشد.")
-        print("💡 دلیل احتمالی: آی‌پی‌های گیت‌هاب (Azure) توسط فایروال ایران یا خود پروکسی‌ها مسدود شده‌اند.")
+        print("\n❌ پروکسی پیدا شد ولی هیچکدام وصل نشدند (مشکل پورت/فیلترینگ).")
 
 if __name__ == "__main__":
     main()
