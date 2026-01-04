@@ -1,9 +1,9 @@
-name: Safe Proxy Collector
+name: Eco Proxy Collector
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Runs every 6 hours (Safe Interval)
-  workflow_dispatch: # Manual trigger button
+    - cron: '0 */12 * * *' # اجرا هر 12 ساعت (بسیار امن)
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,16 +21,15 @@ jobs:
       with:
         python-version: '3.9'
 
-    - name: Install dependencies
-      run: pip install aiohttp
+    # مرحله نصب حذف شد چون از کتابخانه داخلی استفاده کردیم
 
-    - name: Run Collector Script
+    - name: Run Script
       run: python main.py
 
     - name: Commit and Push
       run: |
-        git config --global user.name "Network Bot"
+        git config --global user.name "EcoBot"
         git config --global user.email "bot@github.com"
         git add mtproto.txt
-        git commit -m "Auto Update: Fresh Proxies List" || echo "No changes to commit"
+        git commit -m "Auto Update" || echo "No changes"
         git push
