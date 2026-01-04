@@ -10,9 +10,7 @@ import os
 # ==========================================
 SOURCES = [
     # --- Premium GitHub Raw Sources ---
-    "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/mtproto.txt",
     "https://raw.githubusercontent.com/soroushmirzaei/telegram-proxies-collector/main/proxies.txt",
-    "https://raw.githubusercontent.com/MahsaNetConfigTopic/proxy/main/proxies.txt",
     
     # --- Telegram Channels (Web Preview Mode /s/) ---
     "https://t.me/s/ProxyMTProto",
@@ -20,14 +18,11 @@ SOURCES = [
     "https://t.me/s/Myporoxy",
     "https://t.me/s/ProxyMTProto_tel",
     "https://t.me/s/PewezaVPN",
-    "https://t.me/s/asrnovin_ir",
     "https://t.me/s/ProxyHagh",
     "https://t.me/s/iMTProto",
     "https://t.me/s/Proxy_Qavi",
     "https://t.me/s/NoteProxy",
     "https://t.me/s/proxymtprotoj",
-    "https://t.me/s/Pen_Musix",
-    "https://t.me/s/ShadowProxy66",
     "https://t.me/s/TelMTProto",
     "https://t.me/s/iRoProxy",
 
