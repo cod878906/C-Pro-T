@@ -1,8 +1,8 @@
-name: Proxy Fix
+name: Pro Proxy Collector
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */3 * * *' # هر 3 ساعت
   workflow_dispatch:
 
 permissions:
@@ -19,15 +19,18 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10'
 
-    - name: Run Script
+    - name: Install requests
+      run: pip install requests
+
+    - name: Run Collector
       run: python main.py
 
     - name: Commit and Push
       run: |
-        git config --global user.name "Bot"
+        git config --global user.name "ProxyBot"
         git config --global user.email "bot@github.com"
         git add mtproto.txt
-        git commit -m "Auto Update" || echo "No changes"
+        git commit -m "Updated Proxies" || echo "No changes"
         git push
