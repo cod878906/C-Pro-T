@@ -1,126 +1,105 @@
-import urllib.request
+import requests
 import re
 import socket
 import time
-import html
 from concurrent.futures import ThreadPoolExecutor
 
-# ==========================================
-# 🎯 منابع (Sources)
-# ==========================================
+# ==========================================================
+# 🏆 TOP TIER SOURCES (منابع مادر و تایید شده گیت‌هاب)
+# ==========================================================
+# این‌ها لیست‌هایی هستند که خودشان تست شده و تمیز هستند.
 SOURCES = [
-    # --- Premium GitHub Raw Sources ---
     "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/mtproto.txt",
-    
-    # --- Telegram Channels (Web Preview Mode /s/) ---
-    "https://t.me/s/ProxyMTProto",
-    "https://t.me/s/TelMTProto",
-    "https://t.me/s/Myporoxy",
-    "https://t.me/s/PewezaVPN",
-    "https://t.me/s/ProxyHagh",
-    "https://t.me/s/iMTProto",
-    "https://t.me/s/Proxy_Qavi",
-    "https://t.me/s/NoteProxy",
-    "https://t.me/s/proxymtprotoj",
-    "https://t.me/s/TelMTProto",
-    "https://t.me/s/iRoProxy",
-
-  
-    # --- 👇 ADD YOUR OWN SOURCES HERE 👇 ---
-    # "YOUR_CHANNEL_LINK_OR_RAW_URL",
+    "https://raw.githubusercontent.com/soroushmirzaei/telegram-proxies-collector/main/proxies.txt",
+    "https://raw.githubusercontent.com/porridgewithraisins/telegram-proxy-collector/main/proxy-list.txt",
+    "https://raw.githubusercontent.com/ALIILAPRO/Proxy/main/mtproto.txt",
+    "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/mtproto.txt"
 ]
-# ⚙️ تنظیمات
-TIMEOUT = 2.0       # تایم‌اوت تست اتصال
-MAX_THREADS = 50    # سرعت تست
 
-# ==========================================
-# 🛠 توابع
-# ==========================================
+# تنظیمات
+TIMEOUT = 2.0  # تایم‌اوت تست (فقط سرورهای تیز رو میخوایم)
 
-def fetch_content(url):
+def fetch_proxies():
+    print("💎 در حال استخراج از مخازن معتبر گیت‌هاب...")
+    unique_proxies = set()
+    
+    for url in SOURCES:
+        try:
+            print(f"   📥 دریافت: {url.split('com/')[1][:30]}...")
+            resp = requests.get(url, timeout=10)
+            if resp.status_code == 200:
+                # ریجکس برای استخراج دقیق لینک‌های تلگرام
+                links = re.findall(r'tg://proxy\?server=[^&]+&port=\d+&secret=[a-zA-Z0-9]+', resp.text)
+                for link in links:
+                    unique_proxies.add(link)
+        except:
+            print(f"   ❌ خطا در دریافت منبع")
+
+    print(f"\n📦 مجموع پروکسی‌های جمع‌آوری شده: {len(unique_proxies)}")
+    return list(unique_proxies)
+
+def test_proxy(link):
+    """تست واقعی اتصال (TCP)"""
     try:
-        # شبیه‌سازی مرورگر واقعی
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        req = urllib.request.Request(url, headers=headers)
+        # پارس کردن لینک
+        match = re.search(r'server=([^&]+)&port=(\d+)', link)
+        if not match: return None
         
-        with urllib.request.urlopen(req, timeout=10) as response:
-            raw_data = response.read().decode('utf-8', errors='ignore')
-            # 💡 نکته مهم: تبدیل کاراکترهای HTML مثل &amp; به &
-            return html.unescape(raw_data)
-    except Exception as e:
-        print(f"      ❌ دانلود نشد: {e}")
-        return ""
-
-def extract_proxies(text):
-    # ریجکس ساده و قدرتمند
-    # دنبال الگوی server=...&port=...&secret=... میگرده
-    pattern = r'(?:server|server_name)=([^&"\s]+)&(?:port|p)=(\d+)&(?:secret|s)=([^&"\s]+)'
-    return re.findall(pattern, text)
-
-def check_proxy(proxy_tuple):
-    server, port, secret = proxy_tuple
-    try:
+        server = match.group(1)
+        port = int(match.group(2))
+        
         start = time.time()
-        # تست اتصال TCP
-        sock = socket.create_connection((server, int(port)), timeout=TIMEOUT)
+        # تست سوکت
+        sock = socket.create_connection((server, port), timeout=TIMEOUT)
         sock.close()
+        
+        # محاسبه پینگ
         ping = int((time.time() - start) * 1000)
-        return f"tg://proxy?server={server}&port={port}&secret={secret}", ping
+        return {'link': link, 'ping': ping}
     except:
-        return None, None
+        return None
 
 def main():
-    print("🚀 شروع اسکنر جدید (HTML Unescape Mode)...")
-    
-    all_candidates = set()
-    
     # 1. جمع‌آوری
-    for url in SOURCES:
-        print(f"📥 بررسی: {url}")
-        content = fetch_content(url)
-        
-        found = extract_proxies(content)
-        
-        if len(found) > 0:
-            print(f"   ✅ {len(found)} مورد پیدا شد.")
-            for item in found:
-                all_candidates.add(item)
-        else:
-            print(f"   ⚠️ خالی بود. (نمونه محتوا: {content[:100]}...)")
-
-    candidates_list = list(all_candidates)
-    print(f"\n📦 کل پروکسی‌های یکتا: {len(candidates_list)}")
+    all_links = fetch_proxies()
     
-    if len(candidates_list) == 0:
-        print("🔴 هیچ پروکسی‌ای پیدا نشد. احتمالا گیت‌هاب دسترسی به تلگرام را محدود کرده است.")
+    if not all_links:
+        print("🔴 هیچ پروکسی‌ای پیدا نشد! اینترنت سرور چک شود.")
         return
 
-    # 2. تست
-    print(f"⚡️ شروع تست اتصال روی {len(candidates_list)} مورد...")
-    valid_proxies = []
+    # 2. تست سرعت (مولتی ترد)
+    print(f"⚡️ شروع تست سلامت روی {len(all_links)} پروکسی...")
+    working_proxies = []
     
-    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-        results = executor.map(check_proxy, candidates_list)
+    # استفاده از 50 کارگر همزمان برای سرعت بالا
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        results = executor.map(test_proxy, all_links)
         
-        for link, ping in results:
-            if link:
-                valid_proxies.append({'link': link, 'ping': ping})
+        for res in results:
+            if res:
+                working_proxies.append(res)
 
-    # 3. ذخیره
-    valid_proxies.sort(key=lambda x: x['ping'])
-    final_links = [x['link'] for x in valid_proxies]
+    # 3. مرتب‌سازی و ذخیره
+    # اونایی که پینگ کمتر دارن میان اول
+    working_proxies.sort(key=lambda x: x['ping'])
     
-    if final_links:
+    # جدا کردن لینک نهایی
+    final_list = [item['link'] for item in working_proxies]
+    
+    # نوشتن در فایل
+    with open("mtproto.txt", "w", encoding="utf-8") as f:
+        # هدر برای اینکه گیت‌هاب بفهمه فایل عوض شده
         import datetime
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        f.write(f"# Telegram MTProto Proxy List\n")
+        f.write(f"# Updated: {now} UTC\n")
+        f.write(f"# Total Active: {len(final_list)}\n")
+        f.write("\n".join(final_list))
         
-        with open("mtproto.txt", "w", encoding="utf-8") as f:
-            f.write(f"# Updated: {now} UTC\n")
-            f.write("\n".join(final_links))
-            
-        print(f"\n💎 موفقیت‌آمیز! {len(final_links)} پروکسی سالم ذخیره شد.")
-    else:
-        print("\n❌ پروکسی پیدا شد ولی هیچکدام وصل نشدند (مشکل پورت/فیلترینگ).")
+    print(f"\n✅ پایان عملیات.")
+    print(f"💎 تعداد پروکسی سالم و تست شده: {len(final_list)}")
+    if len(final_list) > 0:
+        print(f"🚀 بهترین پینگ: {working_proxies[0]['ping']}ms")
 
 if __name__ == "__main__":
     main()
