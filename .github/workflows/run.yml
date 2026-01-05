@@ -1,8 +1,8 @@
-name: Pro Proxy Collector
+name: Proxy Collector
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # هر 3 ساعت
+    - cron: '0 */6 * * *' # اجرا هر 6 ساعت
   workflow_dispatch:
 
 permissions:
@@ -19,12 +19,13 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.9'
 
-    - name: Install requests
+    # نصب کتابخانه ریکوئست (حیاتی)
+    - name: Install dependencies
       run: pip install requests
 
-    - name: Run Collector
+    - name: Run Script
       run: python main.py
 
     - name: Commit and Push
