@@ -1,12 +1,10 @@
 import requests
 import re
-import socket
-import time
 import html
-from urllib.parse import urlparse
+import random
 
 # ==========================================
-# 🎯 منابع (Sources)
+# 🎯 منابع (هر چی بیشتر، بهتر)
 # ==========================================
 SOURCES = [
     # --- Premium GitHub Raw Sources ---
@@ -30,74 +28,76 @@ SOURCES = [
     # "YOUR_CHANNEL_LINK_OR_RAW_URL",
 ]
 
-TIMEOUT = 2.0  # تایم‌اوت تست
+# ⚙️ تنظیمات محدودیت
+TOTAL_LIMIT = 2000  # کل پروکسی‌ها نباید بیشتر از این بشه
 
-def fetch_proxies():
-    found_proxies = set()
-    print("🔍 در حال جمع‌آوری پروکسی‌ها (مدل کلاسیک)...")
-    
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-
-    for url in SOURCES:
-        try:
-            print(f"   📥 دریافت از: {url}")
-            response = requests.get(url, headers=headers, timeout=10)
-            
-            # 🔥 فیکس مهم: تبدیل کدهای HTML تلگرام به متن عادی
-            text = html.unescape(response.text)
-
-            # الگوی ساده و قوی برای همه مدل لینک‌ها
-            regex = r'(?:tg://|https://t\.me/)proxy\?server=([^&]+)&port=(\d+)&secret=([^"\s&\n]+)'
-            matches = re.findall(regex, text)
-            
-            for server, port, secret in matches:
-                found_proxies.add((server, int(port), secret))
-
-        except Exception as e:
-            print(f"❌ خطا در لینک {url}: {e}")
-
-    return list(found_proxies)
-
-def is_proxy_alive(server, port):
+def fetch_and_parse(url, limit_per_source):
     try:
-        sock = socket.create_connection((server, port), timeout=TIMEOUT)
-        sock.close()
-        return True
-    except:
-        return False
+        print(f"📥 دریافت از: {url} ...")
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        resp = requests.get(url, headers=headers, timeout=10)
+        
+        # 1. تمیزکاری کدهای HTML (خیلی مهم برای کانال‌های تلگرام)
+        text = html.unescape(resp.text)
+        
+        # 2. استخراج لینک‌ها با ریجکس
+        pattern = r'(?:tg://|https://t\.me/)proxy\?server=([^&]+)&port=(\d+)&secret=([^"\s&\n]+)'
+        matches = re.findall(pattern, text)
+        
+        # تبدیل به لینک استاندارد
+        proxies = []
+        for server, port, secret in matches:
+            link = f"tg://proxy?server={server}&port={port}&secret={secret}"
+            proxies.append(link)
+            
+        # 3. برداشتنِ "آخرین‌ها" (جدیدترین‌ها)
+        # اگر تعداد پیدا شده بیشتر از سهمیه باشه، از آخر لیست برمیداریم
+        if len(proxies) > limit_per_source:
+            print(f"   🔹 {len(proxies)} تا پیدا شد -> {limit_per_source} تای آخر انتخاب شد.")
+            return proxies[-limit_per_source:] # برش از انتها (جدیدترین‌ها)
+        else:
+            print(f"   🔹 {len(proxies)} تا پیدا شد (همه انتخاب شدند).")
+            return proxies
+            
+    except Exception as e:
+        print(f"   ❌ خطا: {e}")
+        return []
 
 def main():
-    raw_proxies = fetch_proxies()
-    print(f"\n📦 تعداد کل کاندیداها: {len(raw_proxies)}")
+    print("🚀 شروع جمع‌آوری سریع (بدون تست)...")
     
-    working_proxies = []
-    print("\n⚡️ در حال تست اتصال (صبر کنید)...")
+    all_proxies = []
+    
+    # محاسبه سهمیه هر منبع
+    # مثلا اگه 10 تا منبع داریم و ظرفیت 2000 تاست، از هر کدوم 200 تا برمیداریم
+    limit_per_source = TOTAL_LIMIT // len(SOURCES)
+    print(f"📊 سهمیه هر منبع: {limit_per_source} پروکسی جدید")
 
-    # تست همه موارد (محدودیت برداشته شد)
-    for i, (server, port, secret) in enumerate(raw_proxies):
-        if is_proxy_alive(server, port):
-            print(f"✅ فعال: {server}:{port}")
-            # فرمت استاندارد tg://
-            link = f"tg://proxy?server={server}&port={port}&secret={secret}"
-            working_proxies.append(link)
-        
-        # نمایش وضعیت هر 50 تا
-        if i % 50 == 0 and i > 0:
-            print(f"   ... {i} مورد چک شد")
+    for url in SOURCES:
+        fetched = fetch_and_parse(url, limit_per_source)
+        all_proxies.extend(fetched)
 
-    print(f"\n💎 تعداد نهایی پروکسی‌های سالم: {len(working_proxies)}")
+    # حذف تکراری‌ها (ست کردن)
+    unique_proxies = list(set(all_proxies))
+    
+    # اگر بعد از حذف تکراری‌ها بیشتر از 2000 تا شد، کات میکنیم
+    if len(unique_proxies) > TOTAL_LIMIT:
+        unique_proxies = unique_proxies[:TOTAL_LIMIT]
 
-    # ذخیره در فایل TXT
-    if working_proxies:
+    print(f"\n📦 تعداد نهایی پروکسی‌ها: {len(unique_proxies)}")
+
+    # ذخیره در فایل
+    if unique_proxies:
         import datetime
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         with open("mtproto.txt", "w", encoding="utf-8") as f:
             f.write(f"# Updated: {now} UTC\n")
-            f.write("\n".join(working_proxies))
-        print("💾 فایل mtproto.txt ذخیره شد.")
+            f.write(f"# Count: {len(unique_proxies)}\n")
+            f.write("\n".join(unique_proxies))
+        print("💾 فایل ذخیره شد.")
     else:
-        print("❌ هیچ پروکسی سالمی پیدا نشد.")
+        print("❌ هیچ پروکسی‌ای پیدا نشد.")
 
 if __name__ == "__main__":
     main()
